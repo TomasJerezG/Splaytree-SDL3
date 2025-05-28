@@ -5,6 +5,7 @@
 #include <math.h>
 #include "splaytree.h"
 #include <SDL3_ttf/SDL_ttf.h>
+#include <string.h>
 
 #define height 1080
 #define width 1920
@@ -14,7 +15,7 @@ static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 static SDL_Texture *texture = NULL;
 static TTF_Font *font = NULL;
-
+static splaytree *tree;
 void DrawCircle(SDL_Renderer* renderer, float centerX, float centerY, float radius, int thickness, TTF_Font* font, int number, SDL_Color textColor)
 {
     const int segments = 360;
@@ -55,13 +56,96 @@ void DrawCircle(SDL_Renderer* renderer, float centerX, float centerY, float radi
     
 }
 
+void DrawThickLine(SDL_Renderer* renderer, float x1, float y1, float x2, float y2, float thickness) {
+    if (thickness <= 0.0f) {
+        return; // Nothing to draw
+    }
+
+    if (thickness == 1.0f) {
+        // For 1-pixel thick lines, use the native function for potential optimization
+        SDL_RenderLine(renderer, x1, y1, x2, y2);
+        return;
+    }
+
+    // Calculate the direction vector of the line
+    float dx = x2 - x1;
+    float dy = y2 - y1;
+
+    // Calculate the length of the line
+    float length = sqrtf(dx * dx + dy * dy);
+
+    if (length == 0.0f) {
+        // If it's just a point, draw a filled square for simplicity
+        SDL_FRect rect = { x1 - thickness / 2.0f, y1 - thickness / 2.0f, thickness, thickness };
+        SDL_RenderFillRect(renderer, &rect);
+        return;
+    }
+
+    // Calculate the normalized perpendicular vector
+    // (nx, ny) is perpendicular to (dx, dy)
+    float nx = -dy / length;
+    float ny = dx / length;
+
+    // Half of the thickness
+    float halfThickness = thickness / 2.0f;
+
+    // Define the four vertices of the rectangle that forms the thick line
+    SDL_FPoint p1_offset = {x1 + nx * halfThickness, y1 + ny * halfThickness};
+    SDL_FPoint p2_offset = {x1 - nx * halfThickness, y1 - ny * halfThickness};
+    SDL_FPoint p3_offset = {x2 - nx * halfThickness, y2 - ny * halfThickness};
+    SDL_FPoint p4_offset = {x2 + nx * halfThickness, y2 + ny * halfThickness};
+
+    SDL_Vertex vertices[4];
+    SDL_FColor color; // Define a color struct
+
+    // Get the current draw color from the renderer
+    // This assumes you want the thick line to be the current renderer color
+    Uint8 r, g, b, a;
+    SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
+    color.r = (float)r / 255.0f;
+    color.g = (float)g / 255.0f;
+    color.b = (float)b / 255.0f;
+    color.a = (float)a / 255.0f;
 
 
-void DrawTree(SDL_Renderer* renderer, splaytree *tree, TTF_Font* font, SDL_Color textColor, float x, float y, float hgap){
+    // Top-left
+    vertices[0].position = p1_offset;
+    vertices[0].color = color;
+    vertices[0].tex_coord = (SDL_FPoint){0.0f, 0.0f}; // C99 compound literal
+
+    // Bottom-left
+    vertices[1].position = p2_offset;
+    vertices[1].color = color;
+    vertices[1].tex_coord = (SDL_FPoint){0.0f, 1.0f};
+
+    // Bottom-right
+    vertices[2].position = p3_offset;
+    vertices[2].color = color;
+    vertices[2].tex_coord = (SDL_FPoint){1.0f, 1.0f};
+    
+    // Top-right
+    vertices[3].position = p4_offset;
+    vertices[3].color = color;
+    vertices[3].tex_coord = (SDL_FPoint){1.0f, 0.0f};
+
+    // Indices to form two triangles from the four vertices
+    // Triangle 1: 0, 1, 2
+    // Triangle 2: 0, 2, 3
+    int indices[] = {0, 1, 2, 0, 2, 3};
+
+    SDL_RenderGeometry(renderer, NULL, vertices, 4, indices, 6);
+}
+
+void DrawTree(SDL_Renderer* renderer, splaytree *tree, TTF_Font* font, SDL_Color textColor, float x, float y, float hgap, float parent_x, float parent_y){
     if (tree == NULL) return;
     DrawCircle(renderer, x,y,30,10,font,tree->data, textColor);
-    DrawTree(renderer, tree->left, font, textColor, x - hgap, y+100, hgap*0.5f);
-    DrawTree(renderer, tree->right, font, textColor, x+ hgap, y+100,  hgap * 0.5f);
+    if (!(parent_x == -1.0f && parent_y == -1.0f)) { // Use a sentinel value for the root's parent
+            // Set line color (e.g., white or black)
+            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Light grey line
+            DrawThickLine(renderer, parent_x, parent_y, x, y, 3.0f); // 3-pixel thick line
+        }
+    DrawTree(renderer, tree->left, font, textColor, x - hgap, y+100, hgap*0.5f, x, y);
+    DrawTree(renderer, tree->right, font, textColor, x+ hgap, y+100,  hgap * 0.5f, x, y);
 }
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
@@ -89,7 +173,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
         return SDL_APP_FAILURE;
     }
     
-    
+    tree = create_node(10);
     return SDL_APP_CONTINUE; 
 }
 
@@ -108,19 +192,24 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     SDL_RenderClear(renderer);
     SDL_SetRenderDrawColor(renderer, 250, 250,  250,   255);
     SDL_Color textColor = {255, 255, 255, 255};
-    splaytree *tree = create_node(10);
-    insert_node(tree, 8);
-    insert_node(tree, 9);
-    insert_node(tree, 20);
-    insert_node(tree, 17);
-    insert_node(tree, 22);
-    insert_node(tree, 33);
-    insert_node(tree, 45);
-    insert_node(tree, 15);
-    insert_node(tree, 14);
-    insert_node(tree, 13);
-    insert_node(tree, 19);
-    DrawTree(renderer, tree, font, textColor, 960, 80, 480);
+    char input[100];
+    char command[10];
+    int number;
+    printf("Enter command (e.g., Add 5 or Delete 3 or Rand 50): ");
+    if (fgets(input, sizeof(input), stdin) != NULL) {
+        if (sscanf(input, "%s %d", command, &number) == 2) {
+            if (strcmp(command, "Add") == 0) {
+                tree = insert_node(tree, number);
+            } else if (strcmp(command, "Del") == 0) {
+                printf("lmao");
+            } else {
+                printf("Unknown command: %s\n", command);
+            }
+        } else {
+            printf("Invalid input format. Please enter a command followed by a number.\n");
+        }
+    }
+    DrawTree(renderer, tree, font, textColor, 960, 80, 480, -1.0f, -1.0f);
     SDL_RenderPresent(renderer);
     return SDL_APP_CONTINUE;  
 }

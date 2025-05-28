@@ -29,7 +29,6 @@ splaytree*  splay_node(splaytree *root, int key) {
     if (root == NULL || root->data == key)
         return root;
 
-    // Key en subárbol izquierdo
     if (key < root->data) {
         if (root->left == NULL)
             return root;
