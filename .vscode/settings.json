@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "splaytree.h": "c",
+        "sdl_ttf.h": "c"
+    }
+}

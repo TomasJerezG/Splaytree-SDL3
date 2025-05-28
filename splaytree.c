@@ -1,43 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-
-typedef struct splaytree
-{
-    int data;
-    struct splaytree *left;
-    struct splaytree *right;
-}splaytree;
-
-
-typedef struct pila
-{
-    splaytree *base;
-    splaytree *top;
-    int tamaño;
-}pila;
-
-pila * crear_pila(int tamaño){
-    pila *new_pila;
-    new_pila = (pila *) malloc(sizeof(pila));
-    new_pila->base = (splaytree *) malloc(tamaño * sizeof(splaytree));
-    new_pila->tamaño = tamaño;
-    new_pila->top = new_pila->base;
-    return(new_pila);
-}
-
-int add_pila(pila * pil, splaytree *objeto){
-    if (pil->top < pil->base + pil->tamaño){
-        pil->top = objeto; pil->top +=1;
-        return 0;
-    }
-    else 
-        return 1;
-}
-
-splaytree * eliminar_pila(pila *pil){
-    pil->top -= 1;
-    return(pil->top);
-}
+#include "splaytree.h"
 
 
 splaytree *create_node(int data){
@@ -48,61 +11,100 @@ splaytree *create_node(int data){
     new_node->right = NULL;
 }
 
-void left_rotation(splaytree *node){
-    splaytree *old_node = node;
-    node->data = old_node->right->data;
-    node->right = old_node->right->right;
-    node->left = old_node;
-    node->left->right = old_node->right;
+splaytree* leftRotate(splaytree* x) {
+    splaytree* y = x->right;
+    x->right = y->left;
+    y->left = x;
+    return y;
 }
 
-void right_rotation(splaytree *node){
-    splaytree *old_node = node;
-    node->data = old_node->left->data;
-    node->left = old_node->left->left;
-    node->right = old_node;
-    node->right->left = old_node->left;
+splaytree* rightRotate(splaytree* x) {
+    splaytree* y = x->left;
+    x->left = y->right;
+    y->right = x;
+    return y;
 }
 
-void splay(splaytree *node, pila * pil){
+splaytree*  splay_node(splaytree *root, int key) {
+    if (root == NULL || root->data == key)
+        return root;
 
-    
+    // Key en subárbol izquierdo
+    if (key < root->data) {
+        if (root->left == NULL)
+            return root;
+
+        // Zig-Zig (Left Left)
+        if (key < root->left->data) {
+            root->left->left = splay_node(root->left->left, key);
+            root = rightRotate(root);
+        }
+        // Zig-Zag (Left Right)
+        else if (key > root->left->data) {
+            root->left->right = splay_node(root->left->right, key);
+            if (root->left->right != NULL)
+                root->left = leftRotate(root->left);
+        }
+
+        return (root->left == NULL) ? root : rightRotate(root);
+    } else {
+        if (root->right == NULL)
+            return root;
+
+        // Zag-Zig (Right Left)
+        if (key < root->right->data) {
+            root->right->left = splay_node(root->right->left, key);
+            if (root->right->left != NULL)
+                root->right = rightRotate(root->right);
+        }
+        // Zag-Zag (Right Right)
+        else if (key > root->right->data) {
+            root->right->right = splay_node(root->right->right, key);
+            root = leftRotate(root);
+        }
+
+        return (root->right == NULL) ? root : leftRotate(root);
+    }
 }
-int insert_node(splaytree * tree, int data){
+
+splaytree * insert_node(splaytree * tree, int data){
     splaytree * current;
     current = tree;
-    pila *pill;
-    pill = crear_pila(100);
+    splaytree * last = tree;
     while (current != NULL && (current->left !=NULL || current->right !=NULL))
     {
-        add_pila(pill, current);
         if (current->data <data)
         {
+            last = current;
             current = current->right;
         }
         else if (current->data > data)
         {
+            last = current;
             current = current->left;
         }
         else
         {
-            return -1;
+            return NULL;
         }
     }
     splaytree *new_node = create_node(data);
     if (current == NULL)
     {
-        current = eliminar_pila(pill);
+        current = last;
         
     }
     if (current->data < data)
     {
         current->right = new_node;
-        return 1;
+        splaytree *new_tree = splay_node(tree, data);
+        return new_tree;
     }
     if (current->data > data)
     {
         current->left = new_node;
+        splaytree *new_tree = splay_node(tree, data);
+        return new_tree;
     }
 }
 
@@ -126,24 +128,23 @@ void print_tree_level_order(splaytree *root) {
         return;
     }
 
-    // Create a simple queue using an array
-    splaytree *queue[1000];  // Adjust size as needed
+    splaytree *queue[1000];  
     int front = 0, rear = 0;
 
-    queue[rear++] = root;  // Enqueue root
+    queue[rear++] = root;  
 
     while (front < rear) {
         int nodes_in_level = rear - front;
         
         while (nodes_in_level--) {
-            splaytree *current = queue[front++];  // Dequeue
+            splaytree *current = queue[front++];  
             printf("%d ", current->data);
 
             if (current->left != NULL)
-                queue[rear++] = current->left;  // Enqueue left child
+                queue[rear++] = current->left;  
             if (current->right != NULL)
-                queue[rear++] = current->right;  // Enqueue right child
+                queue[rear++] = current->right;  
         }
-        printf("\n");  // New line after each level
+        printf("\n");  
     }
 }
